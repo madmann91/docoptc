@@ -14,3 +14,7 @@ A [docopt](https://github.com/docopt) compiler written in C that generates C cod
 Simply run the compiler with an input text file to generate C code:
 
     docoptc file.txt
+
+## Why?
+
+Because the python implementation mandates a dependency on Python. This project only requires a C compiler.
