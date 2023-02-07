@@ -3,7 +3,7 @@
 #include <stdalign.h>
 #include <stdlib.h>
 
-#define MIN_BLOCK_SIZE 1024
+#define MIN_BLOCK_SIZE 4096
 
 struct MemBlock {
     size_t size, cap;

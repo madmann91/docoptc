@@ -19,10 +19,11 @@ static void print_many(FILE* file, const char* sep, const Syntax* syntax) {
 void print_syntax(FILE* file, const Syntax* syntax) {
     switch (syntax->tag) {
         case SYNTAX_ROOT:
-            fprintf(file, "Usage:\n");
+            fprintf(file, "%s\n\nUsage:\n", syntax->root.info);
             print_many(file, "\n", syntax->root.usages);
             fprintf(file, "\n\nOptions:\n");
             print_many(file, "\n", syntax->root.descs);
+            fprintf(file, "\n");
             break;
         case SYNTAX_ERROR:
             fprintf(file, "#error#");
@@ -32,7 +33,11 @@ void print_syntax(FILE* file, const Syntax* syntax) {
             print_many(file, " ", syntax->usage.elems);
             break;
         case SYNTAX_DESC:
-            fprintf(file, "TODO");
+            fprintf(file, "  ");
+            print_many(file, " ", syntax->desc.elems);
+            fprintf(file, "  %s", syntax->desc.info);
+            if (syntax->desc.default_val)
+                fprintf(file, " # defaults to '%s'", syntax->desc.default_val);
             break;
         case SYNTAX_COMMAND:
             fprintf(file, "%s", syntax->command.name);

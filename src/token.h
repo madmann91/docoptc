@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #define TOKEN_LIST(f) \
     f(UNKNOWN, "invalid token") \
@@ -46,6 +47,7 @@ typedef enum {
 typedef struct {
     TokenTag tag;
     SourceRange range;
+    bool is_separated;
 } Token;
 
 const char* get_token_tag_name(TokenTag);

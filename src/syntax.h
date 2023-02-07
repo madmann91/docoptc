@@ -30,6 +30,7 @@ struct Syntax {
     Syntax* next;
     union {
         struct {
+            const char* info;
             Syntax* usages;
             Syntax* descs;
         } root;
@@ -40,6 +41,7 @@ struct Syntax {
         struct {
             Syntax* elems;
             const char* info;
+            const char* default_val;
         } desc;
         struct {
             const char* name;

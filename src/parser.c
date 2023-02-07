@@ -30,6 +30,27 @@ static inline char* extract_str(MemPool* mem_pool, const char* file_data, size_t
     return str;
 }
 
+static inline const char* extract_default_val(MemPool* mem_pool, const char* info, const SourceRange* range) {
+    const char* default_begin = strstr(info, "[default:");
+    if (!default_begin)
+        return NULL;
+    default_begin += 9;
+    default_begin += strspn(default_begin, " \t");
+    const char* default_end = strchr(default_begin, ']');
+    if (!default_end)
+    {
+        default_end = strpbrk(default_begin, " \t");
+        if (!default_end)
+            default_end = default_begin + strlen(default_begin);
+        error_at(range, "unterminated default value specifier");
+    }
+    size_t len = default_end - default_begin;
+    char* default_val = mem_pool_alloc(mem_pool, len + 1);
+    memcpy(default_val, default_begin, len);
+    default_val[len] = 0;
+    return default_val;
+}
+
 static inline Syntax* make_syntax(Parser* parser, const SourcePos* begin, const Syntax* syntax) {
     Syntax* new_syntax = mem_pool_alloc(parser->mem_pool, sizeof(Syntax));
     memcpy(new_syntax, syntax, sizeof(Syntax));
@@ -70,6 +91,17 @@ static inline bool expect_token(Parser* parser, TokenTag tag) {
 static inline void eat_token(Parser* parser, TokenTag tag) {
     assert(parser->ahead.tag == tag);
     skip_token(parser);
+}
+
+static void skip_non_opt_lines(Parser* parser, SourcePos* end) {
+    while (parser->ahead.tag != TOKEN_END) {
+        *end = parser->ahead.range.begin;
+        while (accept_token(parser, TOKEN_NL));
+        if (parser->ahead.tag == TOKEN_LOPT || parser->ahead.tag == TOKEN_SOPT)
+            break;
+        skip_line(parser->lexer);
+        skip_token(parser);
+    }
 }
 
 static Syntax* parse_error(Parser* parser, const char* context) {
@@ -207,8 +239,63 @@ static Syntax* parse_usage(Parser* parser) {
     });
 }
 
-static bool locate_usage(Parser* parser) {
+static Syntax* parse_desc(Parser* parser) {
+    SourcePos begin = parser->ahead.range.begin;
+
+    Syntax* first_elem = parse_elem(parser);
+    Syntax** prev_elem = &first_elem->next;
+    while (
+        !parser->ahead.is_separated &&
+        (parser->ahead.tag == TOKEN_SOPT || parser->ahead.tag == TOKEN_LOPT))
+    {
+        *prev_elem = parse_opt(parser);
+        prev_elem = &(*prev_elem)->next;
+        accept_token(parser, TOKEN_COMMA);
+    }
+
+    const char* info = "";
+    const char* default_val = NULL;
+    if (parser->ahead.is_separated)
+    {
+        SourcePos info_begin = parser->ahead.range.begin, info_end;
+        skip_line(parser->lexer);
+        skip_token(parser);
+        skip_non_opt_lines(parser, &info_end);
+        info = extract_str(parser->mem_pool, parser->lexer->file_data, info_begin.bytes, info_end.bytes);
+        default_val = extract_default_val(parser->mem_pool, info, &(SourceRange) {
+            .file_name = parser->lexer->file_name,
+            .begin = info_begin,
+            .end = info_end
+        });
+    }
+
+    return make_syntax(parser, &begin, &(Syntax) {
+        .tag = SYNTAX_DESC,
+        .desc = {
+            .info = info,
+            .default_val = default_val,
+            .elems = first_elem
+        }
+    });
+}
+
+static Syntax* parse_descs(Parser* parser) {
+    SourcePos end;
+    Syntax* first_desc = NULL;
+    Syntax** prev_desc = &first_desc;
     while (true) {
+        skip_non_opt_lines(parser, &end);
+        if (parser->ahead.tag == TOKEN_END)
+            break;
+        *prev_desc = parse_desc(parser);
+        prev_desc = &(*prev_desc)->next;
+    }
+    return first_desc;
+}
+
+static bool locate_usage(Parser* parser, SourcePos* end) {
+    while (true) {
+        *end = parser->ahead.range.begin;
         while (accept_token(parser, TOKEN_NL));
         if (parser->ahead.tag == TOKEN_END)
             return false;
@@ -223,20 +310,23 @@ static bool locate_usage(Parser* parser) {
 }
 
 Syntax* parse(Parser* parser) {
-    if (!locate_usage(parser))
+    SourcePos begin = parser->ahead.range.begin;
+    SourcePos info_end;
+    if (!locate_usage(parser, &info_end))
         return parse_error(parser, "usage or option list");
 
-    // Parse the first usage line
-    SourcePos begin = parser->ahead.range.begin;
-    Syntax* first_usage = parse_usage(parser);
-    Syntax** prev_usage = &first_usage->next;
-    while (parser->ahead.tag == TOKEN_IDENT) {
-        *prev_usage = parse_usage(parser);
-        prev_usage = &(*prev_usage)->next;
-    }
+    const char* info = extract_str(parser->mem_pool,
+        parser->lexer->file_data, begin.bytes, info_end.bytes);
+
+    Syntax* usages = parse_many(parser, TOKEN_NL, parse_usage);
+    Syntax* descs = parse_descs(parser);
 
     return make_syntax(parser, &begin, &(Syntax) {
         .tag = SYNTAX_ROOT,
-        .root = { .usages = first_usage }
+        .root = {
+            .info = info,
+            .usages = usages,
+            .descs = descs
+        }
     });
 }

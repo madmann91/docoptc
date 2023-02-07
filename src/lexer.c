@@ -93,9 +93,10 @@ void skip_line(Lexer* lexer) {
         skip_char(lexer);
 }
 
-static inline Token make_token(Lexer* lexer, const SourcePos* begin, TokenTag tag) {
+static inline Token make_token(Lexer* lexer, const SourcePos* begin, bool is_separated, TokenTag tag) {
     return (Token) {
         .tag = tag,
+        .is_separated = is_separated,
         .range = {
             .file_name = lexer->file_name,
             .begin = *begin,
@@ -105,28 +106,28 @@ static inline Token make_token(Lexer* lexer, const SourcePos* begin, TokenTag ta
 }
 
 Token lex(Lexer* lexer) {
-    eat_spaces(lexer);
+    bool is_separated = eat_spaces(lexer) >= 2;
 
     SourcePos begin = lexer->pos;
     if (eof_reached(lexer))
-        return make_token(lexer, &begin, TOKEN_END);
+        return make_token(lexer, &begin, is_separated, TOKEN_END);
 
-    if (accept_char(lexer, '\n')) return make_token(lexer, &begin, TOKEN_NL);
-    if (accept_char(lexer, '['))  return make_token(lexer, &begin, TOKEN_LBRACKET);
-    if (accept_char(lexer, ']'))  return make_token(lexer, &begin, TOKEN_RBRACKET);
-    if (accept_char(lexer, '('))  return make_token(lexer, &begin, TOKEN_LPAREN);
-    if (accept_char(lexer, ')'))  return make_token(lexer, &begin, TOKEN_RPAREN);
-    if (accept_char(lexer, '|'))  return make_token(lexer, &begin, TOKEN_OR);
-    if (accept_str(lexer, "...")) return make_token(lexer, &begin, TOKEN_DOTS);
-    if (accept_char(lexer, ':'))  return make_token(lexer, &begin, TOKEN_COLON);
-    if (accept_char(lexer, '='))  return make_token(lexer, &begin, TOKEN_COLON);
-    if (accept_char(lexer, ','))  return make_token(lexer, &begin, TOKEN_COMMA);
+    if (accept_char(lexer, '\n')) return make_token(lexer, &begin, is_separated, TOKEN_NL);
+    if (accept_char(lexer, '['))  return make_token(lexer, &begin, is_separated, TOKEN_LBRACKET);
+    if (accept_char(lexer, ']'))  return make_token(lexer, &begin, is_separated, TOKEN_RBRACKET);
+    if (accept_char(lexer, '('))  return make_token(lexer, &begin, is_separated, TOKEN_LPAREN);
+    if (accept_char(lexer, ')'))  return make_token(lexer, &begin, is_separated, TOKEN_RPAREN);
+    if (accept_char(lexer, '|'))  return make_token(lexer, &begin, is_separated, TOKEN_OR);
+    if (accept_str(lexer, "...")) return make_token(lexer, &begin, is_separated, TOKEN_DOTS);
+    if (accept_char(lexer, ':'))  return make_token(lexer, &begin, is_separated, TOKEN_COLON);
+    if (accept_char(lexer, '='))  return make_token(lexer, &begin, is_separated, TOKEN_COLON);
+    if (accept_char(lexer, ','))  return make_token(lexer, &begin, is_separated, TOKEN_COMMA);
 
     if (accept_ident(lexer)) {
         size_t len = lexer->pos.bytes - begin.bytes;
         const char* str = lexer->file_data + begin.bytes;
         bool is_usage = len == 5 && compare_lower_case(str, "usage", 5) && accept_char(lexer, ':');
-        return make_token(lexer, &begin,
+        return make_token(lexer, &begin, is_separated,
             is_usage ? TOKEN_USAGE :
             is_upper_case_n(str, len) ? TOKEN_UPPERARG : TOKEN_IDENT);
     }
@@ -135,24 +136,24 @@ Token lex(Lexer* lexer) {
         bool ok = true;
         ok &= accept_ident(lexer);
         ok &= accept_char(lexer, '>');
-        return make_token(lexer, &begin, ok ? TOKEN_DELIMARG : TOKEN_UNKNOWN);
+        return make_token(lexer, &begin, is_separated, ok ? TOKEN_DELIMARG : TOKEN_UNKNOWN);
     }
 
     if (accept_char(lexer, '-')) {
         if (accept_ident(lexer)) {
             accept_arg(lexer, ' ', 0);
-            return make_token(lexer, &begin, TOKEN_SOPT);
+            return make_token(lexer, &begin, is_separated, TOKEN_SOPT);
         }
         if (accept_char(lexer, '-')) {
             if (accept_ident(lexer)) {
                 accept_arg(lexer, '=', ' ');
-                return make_token(lexer, &begin, TOKEN_LOPT);
+                return make_token(lexer, &begin, is_separated, TOKEN_LOPT);
             }
-            return make_token(lexer, &begin, TOKEN_DDASH);
+            return make_token(lexer, &begin, is_separated, TOKEN_DDASH);
         }
-        return make_token(lexer, &begin, TOKEN_DASH);
+        return make_token(lexer, &begin, is_separated, TOKEN_DASH);
     }
 
     skip_char(lexer);
-    return make_token(lexer, &begin, TOKEN_UNKNOWN);
+    return make_token(lexer, &begin, is_separated, TOKEN_UNKNOWN);
 }
