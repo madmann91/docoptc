@@ -1,4 +1,4 @@
-# doctoptc
+# docoptc
 
 A [docopt](https://github.com/docopt) compiler written in C that generates C code to parse command line options.
 
