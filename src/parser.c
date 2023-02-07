@@ -102,11 +102,15 @@ static Syntax* parse_error(Parser* parser, const char* context) {
     return make_syntax(parser, &begin, &(Syntax) { .tag = SYNTAX_ERROR });
 }
 
-static const char* parse_ident(Parser* parser) {
-    const char* ident = extract_str(parser->mem_pool,
+static const char* extract_token_str(Parser* parser, size_t skip_begin, size_t skip_end) {
+    return extract_str(parser->mem_pool,
         parser->lexer->file_data,
-        parser->ahead.range.begin.bytes,
-        parser->ahead.range.end.bytes);
+        parser->ahead.range.begin.bytes + skip_begin,
+        parser->ahead.range.end.bytes - skip_end);
+}
+
+static const char* parse_ident(Parser* parser) {
+    const char* ident = extract_token_str(parser, 0, 0);
     expect_token(parser, TOKEN_IDENT);
     return ident;
 }
@@ -127,10 +131,7 @@ static Syntax* parse_or(Parser*);
 static Syntax* parse_arg(Parser* parser) {
     SourcePos begin = parser->ahead.range.begin;
     size_t skip = parser->ahead.tag == TOKEN_DELIMARG ? 1 : 0;
-    const char* name = extract_str(parser->mem_pool,
-        parser->lexer->file_data,
-        parser->ahead.range.begin.bytes + skip,
-        parser->ahead.range.end.bytes - skip);
+    const char* name = extract_token_str(parser, skip, skip);
     skip_token(parser);
     return make_syntax(parser, &begin, &(Syntax) { .tag = SYNTAX_ARG, .arg.name = name });
 }
@@ -138,10 +139,7 @@ static Syntax* parse_arg(Parser* parser) {
 static Syntax* parse_opt(Parser* parser) {
     SourcePos begin = parser->ahead.range.begin;
     bool is_short = parser->ahead.tag == TOKEN_SOPT;
-    char* name = extract_str(parser->mem_pool,
-        parser->lexer->file_data,
-        parser->ahead.range.begin.bytes + (is_short ? 1 : 2),
-        parser->ahead.range.end.bytes);
+    const char* name = extract_token_str(parser, is_short ? 1 : 2, 0);
     eat_token(parser, is_short ? TOKEN_SOPT : TOKEN_LOPT);
     char* arg = strpbrk(name, "= ");
     if (arg) {
@@ -161,7 +159,8 @@ static Syntax* parse_opt(Parser* parser) {
 
 static Syntax* parse_command(Parser* parser) {
     SourcePos begin = parser->ahead.range.begin;
-    const char* name = parse_ident(parser);
+    const char* name = extract_token_str(parser, 0, 0);
+    skip_token(parser);
     return make_syntax(parser, &begin, &(Syntax) { .tag = SYNTAX_COMMAND, .command.name = name });
 }
 
@@ -183,6 +182,8 @@ static Syntax* parse_brackets(Parser* parser) {
 
 static Syntax* parse_elem(Parser* parser) {
     switch (parser->ahead.tag) {
+        case TOKEN_DASH:     // fallthrough
+        case TOKEN_DDASH:    // fallthrough
         case TOKEN_IDENT:    return parse_command(parser);
         case TOKEN_SOPT:     // fallthrough
         case TOKEN_LOPT:     return parse_opt(parser);
