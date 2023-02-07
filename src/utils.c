@@ -13,6 +13,8 @@ char* read_file(const char* file_name) {
     static const size_t chunk_size = 1024;
 
     FILE* file = fopen(file_name, "r");
+    if (!file)
+        return NULL;
     size_t pos = 0, cap = chunk_size;
     char* buf = malloc(cap);
 

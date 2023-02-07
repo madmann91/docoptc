@@ -6,8 +6,10 @@
 
 #include <stdlib.h>
 
-static void compile_file(const char* file_name) {
+static bool compile_file(const char* file_name) {
     char* file_data = read_file(file_name);
+    if (!file_data)
+        return false;
     MemPool mem_pool = new_mem_pool();
     Lexer lexer = make_lexer(file_name, file_data);
     Parser parser = make_parser(&mem_pool, &lexer);
@@ -15,6 +17,7 @@ static void compile_file(const char* file_name) {
     print_syntax(stdout, syntax);
     free(file_data);
     free_mem_pool(&mem_pool);
+    return true;
 }
 
 int main(int argc, char** argv) {
