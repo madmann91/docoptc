@@ -94,17 +94,6 @@ static inline void eat_token(Parser* parser, TokenTag tag) {
     skip_token(parser);
 }
 
-static void skip_non_opt_lines(Parser* parser, SourcePos* end) {
-    while (parser->ahead.tag != TOKEN_END) {
-        *end = parser->ahead.range.begin;
-        while (accept_token(parser, TOKEN_NL));
-        if (parser->ahead.tag == TOKEN_LOPT || parser->ahead.tag == TOKEN_SOPT)
-            break;
-        skip_line(parser->lexer);
-        skip_token(parser);
-    }
-}
-
 static Syntax* parse_error(Parser* parser, const char* context) {
     SourcePos begin = parser->ahead.range.begin;
     error_on_token(parser, context);
@@ -240,6 +229,36 @@ static Syntax* parse_usage(Parser* parser) {
     });
 }
 
+static const char* parse_desc_info(Parser* parser) {
+    if (!parser->ahead.is_separated) {
+        error_on_token(parser, "option description");
+        return "";
+    }
+
+    SourcePos info_begin = parser->ahead.range.begin, info_end;
+    StrBuf str_buf = make_str_buf();
+    do {
+        SourcePos line_begin = parser->ahead.range.begin;
+        if (line_begin.bytes > info_begin.bytes)
+            append_char(&str_buf, '\n');
+        skip_line(parser->lexer);
+        skip_token(parser);
+        info_end = parser->ahead.range.begin;
+        append_str(&str_buf, parser->lexer->file_data + line_begin.bytes, info_end.bytes - line_begin.bytes);
+        eat_token(parser, TOKEN_NL);
+    } while (
+        parser->ahead.tag != TOKEN_NL &&
+        parser->ahead.tag != TOKEN_END &&
+        parser->ahead.tag != TOKEN_SOPT &&
+        parser->ahead.tag != TOKEN_LOPT);
+
+    char* info = mem_pool_alloc(parser->mem_pool, str_buf.size + 1);
+    memcpy(info, str_buf.data, str_buf.size);
+    info[str_buf.size] = 0;
+    free_str_buf(&str_buf);
+    return info;
+}
+
 static Syntax* parse_desc(Parser* parser) {
     SourcePos begin = parser->ahead.range.begin;
 
@@ -254,23 +273,14 @@ static Syntax* parse_desc(Parser* parser) {
         accept_token(parser, TOKEN_COMMA);
     }
 
-    const char* info = "";
-    const char* default_val = NULL;
-    if (parser->ahead.is_separated)
-    {
-        SourcePos info_begin = parser->ahead.range.begin, info_end;
-        skip_line(parser->lexer);
-        skip_token(parser);
-        skip_non_opt_lines(parser, &info_end);
-        info = extract_str(parser->mem_pool, parser->lexer->file_data, info_begin.bytes, info_end.bytes);
-        default_val = extract_default_val(parser->mem_pool, info, &(SourceRange) {
-            .file_name = parser->lexer->file_name,
-            .begin = info_begin,
-            .end = info_end
-        });
-    }
-    else
-        error_on_token(parser, "option description");
+    SourceRange info_range = {
+        .file_name = parser->lexer->file_name,
+        .begin = parser->ahead.range.begin
+    };
+    const char* info = parse_desc_info(parser);
+    info_range.end = parser->prev_end;
+
+    const char* default_val = extract_default_val(parser->mem_pool, info, &info_range);
 
     return make_syntax(parser, &begin, &(Syntax) {
         .tag = SYNTAX_DESC,
@@ -283,15 +293,17 @@ static Syntax* parse_desc(Parser* parser) {
 }
 
 static Syntax* parse_descs(Parser* parser) {
-    SourcePos end;
     Syntax* first_desc = NULL;
     Syntax** prev_desc = &first_desc;
-    while (true) {
-        skip_non_opt_lines(parser, &end);
-        if (parser->ahead.tag == TOKEN_END)
-            break;
-        *prev_desc = parse_desc(parser);
-        prev_desc = &(*prev_desc)->next;
+    while (parser->ahead.tag != TOKEN_END) {
+        while (accept_token(parser, TOKEN_NL));
+        if (parser->ahead.tag == TOKEN_LOPT || parser->ahead.tag == TOKEN_SOPT) {
+            *prev_desc = parse_desc(parser);
+            prev_desc = &(*prev_desc)->next;
+        } else {
+            skip_line(parser->lexer);
+            skip_token(parser);
+        }
     }
     return first_desc;
 }
