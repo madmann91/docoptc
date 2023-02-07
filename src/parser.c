@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include <stdbool.h>
+#include <stdalign.h>
 #include <assert.h>
 
 static inline void skip_token(Parser* parser) {
@@ -25,7 +26,7 @@ Parser make_parser(MemPool* mem_pool, Lexer* lexer) {
 
 static inline char* extract_str(MemPool* mem_pool, const char* file_data, size_t begin, size_t end) {
     size_t len = end < begin ? 0 : end - begin;
-    char* str = mem_pool_alloc(mem_pool, len + 1);
+    char* str = mem_pool_alloc(mem_pool, len + 1, alignof(char));
     memcpy(str, file_data + begin, len);
     str[len] = 0;
     return str;
@@ -46,14 +47,14 @@ static inline const char* extract_default_val(MemPool* mem_pool, const char* inf
         error_at(range, "unterminated default value specifier");
     }
     size_t len = default_end - default_begin;
-    char* default_val = mem_pool_alloc(mem_pool, len + 1);
+    char* default_val = mem_pool_alloc(mem_pool, len + 1, alignof(char));
     memcpy(default_val, default_begin, len);
     default_val[len] = 0;
     return default_val;
 }
 
 static inline Syntax* make_syntax(Parser* parser, const SourcePos* begin, const Syntax* syntax) {
-    Syntax* new_syntax = mem_pool_alloc(parser->mem_pool, sizeof(Syntax));
+    Syntax* new_syntax = mem_pool_alloc(parser->mem_pool, sizeof(Syntax), alignof(Syntax));
     memcpy(new_syntax, syntax, sizeof(Syntax));
     new_syntax->range.file_name = parser->lexer->file_name;
     new_syntax->range.begin = *begin;
@@ -254,7 +255,7 @@ static const char* parse_desc_info(Parser* parser) {
         parser->ahead.tag != TOKEN_SOPT &&
         parser->ahead.tag != TOKEN_LOPT);
 
-    char* info = mem_pool_alloc(parser->mem_pool, str_buf.size + 1);
+    char* info = mem_pool_alloc(parser->mem_pool, str_buf.size + 1, alignof(char));
     memcpy(info, str_buf.data, str_buf.size);
     info[str_buf.size] = 0;
     free_str_buf(&str_buf);

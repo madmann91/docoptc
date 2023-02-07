@@ -12,6 +12,6 @@ typedef struct MemPool {
 
 MemPool new_mem_pool(void);
 void free_mem_pool(MemPool*);
-void* mem_pool_alloc(MemPool*, size_t);
+void* mem_pool_alloc(MemPool*, size_t size, size_t align);
 
 #endif

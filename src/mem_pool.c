@@ -35,10 +35,15 @@ void free_mem_pool(MemPool* mem_pool) {
     }
 }
 
-static inline MemBlock* find_block(MemPool* mem_pool, size_t size) {
+static inline size_t round_up(size_t num, size_t denom) {
+    size_t mod = num % denom;
+    return mod != 0 ? num + denom - mod : num;
+}
+
+static inline MemBlock* find_block(MemPool* mem_pool, size_t size, size_t align) {
     for (MemBlock* cur = mem_pool->cur; cur; cur = cur->next) {
         mem_pool->cur = cur;
-        if (cur->cap - cur->size >= size)
+        if (cur->cap >= round_up(cur->size, align) + size)
             return cur;
     }
     size = size < MIN_BLOCK_SIZE ? MIN_BLOCK_SIZE : size;
@@ -48,13 +53,9 @@ static inline MemBlock* find_block(MemPool* mem_pool, size_t size) {
     return block;
 }
 
-static inline size_t round_up(size_t num, size_t denom) {
-    return (num + (denom - 1) / denom) * denom;
-}
-
-void* mem_pool_alloc(MemPool* mem_pool, size_t size) {
-    size = round_up(size, sizeof(max_align_t));
-    MemBlock* block = find_block(mem_pool, size);
+void* mem_pool_alloc(MemPool* mem_pool, size_t size, size_t align) {
+    MemBlock* block = find_block(mem_pool, size, align);
+    block->size = round_up(block->size, align);
     void* ptr = block->data + block->size;
     block->size += size;
     return ptr;

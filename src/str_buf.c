@@ -3,8 +3,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#define MIN_BUF_SIZE 32
+
 StrBuf make_str_buf(void) {
-    return (StrBuf) { .data = NULL, .size = 0, .cap = 0 };
+    return (StrBuf) { .data = malloc(MIN_BUF_SIZE), .size = 0, .cap = MIN_BUF_SIZE };
 }
 
 static void grow_buf(StrBuf* buf, size_t len) {
