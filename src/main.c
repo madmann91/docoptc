@@ -14,6 +14,7 @@ static bool compile_file(const char* file_name) {
     Lexer lexer = make_lexer(file_name, file_data);
     Parser parser = make_parser(&mem_pool, &lexer);
     Syntax* syntax = parse(&parser);
+    check_syntax(syntax);
     print_syntax(stdout, syntax);
     free(file_data);
     free_mem_pool(&mem_pool);

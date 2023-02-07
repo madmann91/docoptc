@@ -67,5 +67,6 @@ struct Syntax {
 };
 
 void print_syntax(FILE*, const Syntax*);
+void check_syntax(const Syntax*);
 
 #endif

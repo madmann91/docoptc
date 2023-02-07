@@ -265,15 +265,11 @@ static const char* parse_desc_info(Parser* parser) {
 static Syntax* parse_desc(Parser* parser) {
     SourcePos begin = parser->ahead.range.begin;
 
-    Syntax* first_elem = parse_elem(parser);
-    Syntax** prev_elem = &first_elem->next;
-    while (
-        !parser->ahead.is_separated &&
-        (parser->ahead.tag == TOKEN_SOPT || parser->ahead.tag == TOKEN_LOPT))
-    {
-        *prev_elem = parse_opt(parser);
-        prev_elem = &(*prev_elem)->next;
+    Syntax* first_opt = parse_opt(parser);
+    if (!parser->ahead.is_separated) {
         accept_token(parser, TOKEN_COMMA);
+        if (parser->ahead.tag == TOKEN_SOPT || parser->ahead.tag == TOKEN_LOPT)
+            first_opt->next = parse_opt(parser);
     }
 
     SourceRange info_range = {
@@ -290,7 +286,7 @@ static Syntax* parse_desc(Parser* parser) {
         .desc = {
             .info = info,
             .default_val = default_val,
-            .elems = first_elem
+            .elems = first_opt
         }
     });
 }
@@ -327,15 +323,6 @@ static bool locate_usage(Parser* parser, SourcePos* end) {
     return true;
 }
 
-static void check_usages(Syntax* usages) {
-    for (Syntax* usage = usages; usage; usage = usage->next) {
-        if (strcmp(usage->usage.prog, usages->usage.prog)) {
-            error_at(&usage->range, "expected program name '%s', but got '%s'",
-                usages->usage.prog, usage->usage.prog);
-        }
-    }
-}
-
 Syntax* parse(Parser* parser) {
     SourcePos begin = parser->ahead.range.begin;
     SourcePos info_end;
@@ -346,9 +333,8 @@ Syntax* parse(Parser* parser) {
         parser->lexer->file_data, begin.bytes, info_end.bytes);
 
     Syntax* usages = parse_many(parser, TOKEN_NL, parse_usage);
-    check_usages(usages);
-
     Syntax* descs = parse_descs(parser);
+
     return make_syntax(parser, &begin, &(Syntax) {
         .tag = SYNTAX_ROOT,
         .root = {

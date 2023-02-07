@@ -1,6 +1,9 @@
 #include "syntax.h"
 #include "utils.h"
 
+#include <assert.h>
+#include <string.h>
+
 static void print_arg(FILE* file, const char* name) {
     if (is_upper_case(name))
         fprintf(file, "%s", name);
@@ -78,4 +81,38 @@ void print_syntax(FILE* file, const Syntax* syntax) {
         default:
             break;
     }
+}
+
+static void check_usages(Syntax* usages) {
+    for (Syntax* usage = usages; usage; usage = usage->next) {
+        if (strcmp(usage->usage.prog, usages->usage.prog)) {
+            error_at(&usage->range, "expected program name '%s', but got '%s'",
+                usages->usage.prog, usage->usage.prog);
+        }
+    }
+}
+
+static void check_descs(const Syntax* descs) {
+    for (const Syntax* desc = descs; desc; desc = desc->next) {
+        const Syntax* first_opt = desc->desc.elems;
+        const Syntax* other_opt = first_opt->next;
+        bool has_arg = first_opt->option.arg;
+
+        if (other_opt && has_arg != !!other_opt->option.arg) {
+            error_at(&other_opt->range, "option '%s' requires an argument, but option '%s' does not",
+                (has_arg ? first_opt : other_opt)->option.name,
+                (has_arg ? other_opt : first_opt)->option.name);
+        }
+
+        if (!has_arg && desc->desc.default_val) {
+            error_at(&desc->range, "option '%s' has no arguments and cannot have a default value",
+                first_opt->option.name);
+        }
+    }
+}
+
+void check_syntax(const Syntax* root) {
+    assert(root->tag == SYNTAX_ROOT);
+    check_usages(root->root.usages);
+    check_descs(root->root.descs);
 }
