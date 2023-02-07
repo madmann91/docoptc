@@ -2,6 +2,7 @@
 #include "lexer.h"
 #include "syntax.h"
 #include "mem_pool.h"
+#include "str_buf.h"
 #include "utils.h"
 
 #include <string.h>

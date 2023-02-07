@@ -7,6 +7,7 @@ add_executable(docoptc
     src/utils.c
     src/lexer.c
     src/parser.c
+    src/str_buf.c
     src/mem_pool.c
     src/main.c)
 
