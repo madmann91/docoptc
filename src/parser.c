@@ -54,6 +54,7 @@ static inline const char* extract_default_val(MemPool* mem_pool, const char* inf
 static inline Syntax* make_syntax(Parser* parser, const SourcePos* begin, const Syntax* syntax) {
     Syntax* new_syntax = mem_pool_alloc(parser->mem_pool, sizeof(Syntax));
     memcpy(new_syntax, syntax, sizeof(Syntax));
+    new_syntax->range.file_name = parser->lexer->file_name;
     new_syntax->range.begin = *begin;
     new_syntax->range.end = parser->prev_end;
     return new_syntax;
@@ -268,6 +269,8 @@ static Syntax* parse_desc(Parser* parser) {
             .end = info_end
         });
     }
+    else
+        error_on_token(parser, "option description");
 
     return make_syntax(parser, &begin, &(Syntax) {
         .tag = SYNTAX_DESC,
@@ -309,6 +312,15 @@ static bool locate_usage(Parser* parser, SourcePos* end) {
     return true;
 }
 
+static void check_usages(Syntax* usages) {
+    for (Syntax* usage = usages; usage; usage = usage->next) {
+        if (strcmp(usage->usage.prog, usages->usage.prog)) {
+            error_at(&usage->range, "expected program name '%s', but got '%s'",
+                usages->usage.prog, usage->usage.prog);
+        }
+    }
+}
+
 Syntax* parse(Parser* parser) {
     SourcePos begin = parser->ahead.range.begin;
     SourcePos info_end;
@@ -319,8 +331,9 @@ Syntax* parse(Parser* parser) {
         parser->lexer->file_data, begin.bytes, info_end.bytes);
 
     Syntax* usages = parse_many(parser, TOKEN_NL, parse_usage);
-    Syntax* descs = parse_descs(parser);
+    check_usages(usages);
 
+    Syntax* descs = parse_descs(parser);
     return make_syntax(parser, &begin, &(Syntax) {
         .tag = SYNTAX_ROOT,
         .root = {
